@@ -1,134 +1,84 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tra cứu doanh thu</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8">
+  <title>Tra cứu dữ liệu bán hàng</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    th { background-color: #f4f4f4; }
-    .filter-group { margin-bottom: 10px; }
-    canvas { max-width: 800px; margin: 30px auto; display: block; }
+    body {
+      font-family: Arial;
+      padding: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .loading {
+      font-style: italic;
+      color: gray;
+    }
   </style>
 </head>
 <body>
-  <h1>Tra cứu doanh thu</h1>
 
-  <div class="filter-group">
-    Từ ngày: <input type="date" id="fromDate" />
-    Đến ngày: <input type="date" id="toDate" />
-    Khách hàng: <input type="text" id="customerName" placeholder="Tên khách hàng" />
-    Nhân viên bán: <input type="text" id="staffName" placeholder="Tên nhân viên" />
-    Hình thức thanh toán: <select id="paymentMethod">
-      <option value="">Tất cả</option>
-      <option>Tiền mặt</option>
-      <option>Chuyển khoản</option>
-      <option>Quẹt thẻ</option>
-    </select>
-    <button onclick="filterData()">Lọc dữ liệu</button>
-  </div>
-
-  <table id="resultTable">
+  <h2>Dữ liệu bán hàng</h2>
+  <div class="loading" id="loading">Đang tải dữ liệu...</div>
+  <table id="data-table" style="display: none;">
     <thead>
-      <tr>
-        <th>Ngày bán</th><th>Khách hàng</th><th>Sản phẩm</th><th>Số lượng</th><th>Thành tiền</th><th>Thanh toán</th><th>Nhân viên</th>
-      </tr>
+      <tr id="header-row"></tr>
     </thead>
-    <tbody></tbody>
+    <tbody id="table-body"></tbody>
   </table>
 
-  <canvas id="revenueByDate"></canvas>
-  <canvas id="revenueByStaff"></canvas>
-
   <script>
-    const DATA_URL = "https://script.google.com/macros/s/AKfycbxqWVBEtubmt3qe20hs6swV79oSFU63pM12oT-Gd9VcFxODOlAqPEEfUQslZswqdHIj/exec";
-    let allData = [];
+    const url = "https://script.google.com/macros/s/AKfycbxqWVBEtubmt3qe20hs6swV79oSFU63pM12oT-Gd9VcFxODOlAqPEEfUQslZswqdHIj/exec";
 
-    fetch(DATA_URL)
+    fetch(url)
       .then(res => res.json())
       .then(data => {
-        allData = data.map(d => ({
-          ...d,
-          "Thành tiền": parseFloat(d["Thành tiền"] || 0),
-          "Số lượng": parseInt(d["Số lượng"] || 0),
-          "Ngày bán": d["Ngày bán"].split("/").reverse().join("-") // yyyy-mm-dd
-        }));
-        filterData();
-      });
-
-    function filterData() {
-      const from = document.getElementById("fromDate").value;
-      const to = document.getElementById("toDate").value;
-      const customer = document.getElementById("customerName").value.toLowerCase();
-      const staff = document.getElementById("staffName").value.toLowerCase();
-      const payment = document.getElementById("paymentMethod").value;
-
-      const filtered = allData.filter(d => {
-        const dateOK = (!from || d["Ngày bán"] >= from) && (!to || d["Ngày bán"] <= to);
-        const customerOK = !customer || d["Tên khách hàng"].toLowerCase().includes(customer);
-        const staffOK = !staff || d["Nhân viên bán"].toLowerCase().includes(staff);
-        const paymentOK = !payment || d["Hình thức thanh toán"] === payment;
-        return dateOK && customerOK && staffOK && paymentOK;
-      });
-
-      renderTable(filtered);
-      drawCharts(filtered);
-    }
-
-    function renderTable(data) {
-      const tbody = document.querySelector("#resultTable tbody");
-      tbody.innerHTML = data.map(d => `
-        <tr>
-          <td>${d["Ngày bán"]}</td>
-          <td>${d["Tên khách hàng"]}</td>
-          <td>${d["Tên sản phẩm"]}</td>
-          <td>${d["Số lượng"]}</td>
-          <td>${d["Thành tiền"].toLocaleString()}</td>
-          <td>${d["Hình thức thanh toán"]}</td>
-          <td>${d["Nhân viên bán"]}</td>
-        </tr>
-      `).join("");
-    }
-
-    function drawCharts(data) {
-      const revenueByDate = {};
-      const revenueByStaff = {};
-
-      data.forEach(d => {
-        revenueByDate[d["Ngày bán"]] = (revenueByDate[d["Ngày bán"]] || 0) + d["Thành tiền"];
-        revenueByStaff[d["Nhân viên bán"]] = (revenueByStaff[d["Nhân viên bán"]] || 0) + d["Thành tiền"];
-      });
-
-      renderChart("revenueByDate", "Doanh thu theo ngày", revenueByDate);
-      renderChart("revenueByStaff", "Doanh thu theo nhân viên", revenueByStaff);
-    }
-
-    function renderChart(canvasId, label, dataObj) {
-      const ctx = document.getElementById(canvasId).getContext("2d");
-      if (window[canvasId]) window[canvasId].destroy(); // Clear chart if exists
-
-      window[canvasId] = new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: Object.keys(dataObj),
-          datasets: [{
-            label,
-            data: Object.values(dataObj),
-            backgroundColor: "rgba(75, 192, 192, 0.6)",
-            borderColor: "rgba(75, 192, 192, 1)",
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
+        if (!data || data.length === 0) {
+          document.getElementById("loading").textContent = "Không có dữ liệu.";
+          return;
         }
+
+        const headers = Object.keys(data[0]);
+        const headerRow = document.getElementById("header-row");
+        const tableBody = document.getElementById("table-body");
+
+        // Thêm tiêu đề bảng
+        headers.forEach(header => {
+          const th = document.createElement("th");
+          th.textContent = header;
+          headerRow.appendChild(th);
+        });
+
+        // Thêm dòng dữ liệu
+        data.forEach(row => {
+          const tr = document.createElement("tr");
+          headers.forEach(header => {
+            const td = document.createElement("td");
+            td.textContent = row[header];
+            tr.appendChild(td);
+          });
+          tableBody.appendChild(tr);
+        });
+
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("data-table").style.display = "table";
+      })
+      .catch(error => {
+        document.getElementById("loading").textContent = "Lỗi tải dữ liệu.";
+        console.error(error);
       });
-    }
   </script>
+
 </body>
 </html>
